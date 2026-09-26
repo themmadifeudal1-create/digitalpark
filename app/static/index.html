@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ParkIQ — Smart Campus Parking Intelligence Platform (S.M.A.R.T. Edition)</title>
+  <meta name="description" content="Next-generation, QR-based campus parking system with real-time digital twin, AI 48h forecasting, ClassSync timetable allocator, and EdgeGuard kiosks.">
+  
+  <!-- Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <!-- QR Code Generator Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-container">
+      <a href="#" class="brand-logo">
+        <div class="logo-icon">P</div>
+        <span>ParkIQ</span>
+      </a>
+      <span class="smart-badge">S.M.A.R.T. 2026</span>
+    </div>
+
+    <div class="header-status">
+      <!-- Live Sync Status Indicator -->
+      <div id="wsIndicator" class="live-indicator">
+        <span class="live-dot"></span>
+        <span id="wsText">LIVE TWIN &lt; 1s</span>
+      </div>
+
+      <!-- FairFlow Points Chip -->
+      <div class="fairflow-chip" title="FairFlow Off-Peak Commuter Rewards">
+        <span>⚡ FairFlow:</span>
+        <span id="headerFairflowPts">185</span> pts
+      </div>
+
+      <!-- Quick Role Switcher -->
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">ROLE:</span>
+        <select id="userRoleSelect" class="role-switcher-select" onchange="switchUserRole(this.value)">
+          <option value="student_1">Alex Rivera (Student - CS)</option>
+          <option value="student_2">Priya Nair (Student - EC)</option>
+          <option value="staff_1">Dr. Vikram Sharma (Faculty)</option>
+          <option value="admin">Admin Security Office</option>
+          <option value="kiosk">North Gate Kiosk (EdgeGuard)</option>
+        </select>
+      </div>
+
+      <!-- Notification Bell -->
+      <button id="notifBellBtn" class="btn btn-secondary btn-sm" onclick="toggleNotifModal()" style="position: relative;">
+        🔔
+        <span id="notifBadge" style="position: absolute; top: -4px; right: -4px; background: var(--accent-rose); color: #fff; font-size: 0.65rem; padding: 1px 5px; border-radius: 10px; font-weight: 700;">2</span>
+      </button>
+
+      <!-- Audio Toggle -->
+      <button id="audioToggleBtn" class="btn btn-secondary btn-sm" onclick="toggleAudio()" title="Sound Effects (Gate servo chime & alerts)">
+        🔊 SFX: ON
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Bar -->
+  <nav class="app-navbar">
+    <button class="nav-tab-btn active" onclick="switchTab('twinView')">
+      🗺️ Digital Twin Live Map
+    </button>
+    <button class="nav-tab-btn" onclick="switchTab('bookingView')">
+      📅 ClassSync & Booking
+      <span class="badge-pill">Overlap Safe</span>
+    </button>
+    <button class="nav-tab-btn" onclick="switchTab('passesView')">
+      🎟️ My Passes & QR
+    </button>
+    <button class="nav-tab-btn" onclick="switchTab('kioskView')">
+      🛡️ EdgeGuard Gate Kiosk
+      <span class="badge-pill" style="background: var(--accent-emerald);">Hardware Sim</span>
+    </button>
+    <button class="nav-tab-btn" onclick="switchTab('forecastView')">
+      📈 AI Forecast & GreenMeter
+    </button>
+    <button class="nav-tab-btn" onclick="switchTab('adminView')">
+      ⚙️ Admin & Security Console
+    </button>
+    <button class="nav-tab-btn" onclick="switchTab('testSuiteView')" style="color: var(--accent-amber); border-color: rgba(245, 158, 11, 0.3);">
+      🧪 10-Test Suite (Sec 11)
+    </button>
+    <button class="nav-tab-btn" onclick="switchTab('vivaView')" style="color: var(--accent-cyan); border-color: rgba(0, 240, 255, 0.3);">
+      🎓 2-Min Demo & Viva Prep
+    </button>
+    <a href="/static/ParkIQ_Hackathon_Pitch_and_Technical_Guide.pdf" target="_blank" download class="btn btn-primary btn-sm" style="margin-left: auto; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
+      📥 Download Pitch & Viva PDF
+    </a>
+  </nav>
+
+  <!-- Main View Container -->
+  <main class="app-container">
+
+    <!-- Overall Campus Metric Bar -->
+    <section class="stats-grid-4">
+      <div class="stat-card glass-panel">
+        <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald);">🟢</div>
+        <div class="stat-info">
+          <div class="stat-value" id="statAvailSlots">58</div>
+          <div class="stat-label">Available Slots Now</div>
+        </div>
+      </div>
+      <div class="stat-card glass-panel">
+        <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: var(--accent-amber);">🟡</div>
+        <div class="stat-info">
+          <div class="stat-value" id="statResvSlots">3</div>
+          <div class="stat-label">Reserved (Arriving Soon)</div>
+        </div>
+      </div>
+      <div class="stat-card glass-panel">
+        <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: var(--accent-rose);">🔴</div>
+        <div class="stat-info">
+          <div class="stat-value" id="statOccSlots">19</div>
+          <div class="stat-label">Occupied Vehicles</div>
+        </div>
+      </div>
+      <div class="stat-card glass-panel">
+        <div class="stat-icon" style="background: rgba(0, 240, 255, 0.15); color: var(--accent-cyan);">🌱</div>
+        <div class="stat-info">
+          <div class="stat-value" id="statCo2Saved">214.8 kg</div>
+          <div class="stat-label">GreenMeter CO₂ Avoided</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VIEW 1: DIGITAL TWIN LIVE MAP (Centerpiece of Blueprint)
+         ======================================================================== -->
+    <section id="twinView" class="view-section active">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>🗺️ Realtime Digital Twin Campus Map</h2>
+          <p>Live vector representation of all physical parking slots pushed via WebSocket in &lt; 1s. Shows live status, walking route, and historical replay.</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary btn-sm" onclick="fetchTwinData()">🔄 Force Refresh</button>
+          <button class="btn btn-primary btn-sm" onclick="switchTab('bookingView')">⚡ Quick Book Slot</button>
+        </div>
+      </div>
+
+      <div class="twin-container">
+        <!-- Interactive SVG Campus Canvas -->
+        <div class="map-wrapper glass-panel">
+          <div class="map-toolbar">
+            <div class="map-legend">
+              <div class="legend-item"><span class="legend-chip chip-available"></span> Available</div>
+              <div class="legend-item"><span class="legend-chip chip-reserved"></span> Reserved</div>
+              <div class="legend-item"><span class="legend-chip chip-occupied"></span> Occupied</div>
+              <div class="legend-item"><span class="legend-chip chip-maintenance"></span> Maintenance</div>
+              <div class="legend-item"><span style="border-bottom: 2px dashed #00f0ff; width: 16px;"></span> Walking Route</div>
+            </div>
+            <div id="userPinNotice" style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 700;">
+              📍 Active Reservation: <span id="pinSlotCode">P1-A-07</span>
+            </div>
+          </div>
+
+          <!-- SVG Canvas -->
+          <div class="svg-canvas-container">
+            <svg id="campusSvg" class="campus-svg" viewBox="0 0 1000 680" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+                </pattern>
+                <filter id="glowEffect" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+
+              <!-- Base Ground with Grid -->
+              <rect x="0" y="0" width="1000" height="680" fill="#070d1a" />
+              <rect x="0" y="0" width="1000" height="680" fill="url(#gridPattern)" />
+
+              <!-- Campus Roads -->
+              <!-- Main Avenue Vertical -->
+              <path d="M 470 0 L 470 680" class="campus-road" stroke-width="40" stroke="#0e172a" />
+              <line x1="470" y1="0" x2="470" y2="680" stroke="#334155" stroke-dasharray="8 8" stroke-width="2" />
+              
+              <!-- Cross Street Horizontal -->
+              <path d="M 0 340 L 1000 340" class="campus-road" stroke-width="40" stroke="#0e172a" />
+              <line x1="0" y1="340" x2="1000" y2="340" stroke="#334155" stroke-dasharray="8 8" stroke-width="2" />
+
+              <!-- North Gate & EdgeGuard Booth -->
+              <rect x="440" y="8" width="60" height="24" rx="4" fill="#1e293b" stroke="var(--accent-cyan)" stroke-width="1.5" />
+              <text x="470" y="24" text-anchor="middle" fill="var(--accent-cyan)" font-size="9" font-weight="700">NORTH GATE</text>
+
+              <!-- South Gate -->
+              <rect x="440" y="648" width="60" height="24" rx="4" fill="#1e293b" stroke="#64748b" stroke-width="1.5" />
+              <text x="470" y="664" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="700">SOUTH GATE</text>
+
+              <!-- Campus Buildings -->
+              <!-- 1. Main Academic Block (Blocks A - C) -->
+              <g class="building-group" transform="translate(60, 50)">
+                <rect x="0" y="0" width="220" height="120" class="building-block" />
+                <text x="110" y="55" text-anchor="middle" class="building-title">MAIN ACADEMIC BLOCK</text>
+                <text x="110" y="75" text-anchor="middle" class="building-sub">Blocks A, B, C · Lecture Theatres</text>
+              </g>
+
+              <!-- 2. Central Library & Digital Wing -->
+              <g class="building-group" transform="translate(680, 50)">
+                <rect x="0" y="0" width="240" height="120" class="building-block" />
+                <text x="120" y="55" text-anchor="middle" class="building-title">CENTRAL LIBRARY</text>
+                <text x="120" y="75" text-anchor="middle" class="building-sub">Digital Wing & Research Labs</text>
+              </g>
+
+              <!-- 3. Student Hostels & Canteen -->
+              <g class="building-group" transform="translate(60, 480)">
+                <rect x="0" y="0" width="220" height="130" class="building-block" />
+                <text x="110" y="60" text-anchor="middle" class="building-title">HOSTEL COMPLEX</text>
+                <text x="110" y="80" text-anchor="middle" class="building-sub">Hostels 1–4 · Dining Hall</text>
+              </g>
+
+              <!-- 4. Sports Complex & Auditorium -->
+              <g class="building-group" transform="translate(680, 480)">
+                <rect x="0" y="0" width="240" height="130" class="building-block" />
+                <text x="120" y="60" text-anchor="middle" class="building-title">SPORTS ARENA & AUDITORIUM</text>
+                <text x="120" y="80" text-anchor="middle" class="building-sub">Gymnasium · Track · Stadium</text>
+              </g>
+
+              <!-- PARKING LOT P1 (Main Block) -->
+              <g id="svgLotP1" transform="translate(50, 190)">
+                <rect x="0" y="0" width="370" height="110" rx="6" fill="#0a1222" stroke="rgba(0,240,255,0.3)" stroke-width="1.5" />
+                <text x="12" y="20" fill="var(--accent-cyan)" font-size="11" font-weight="800">P1 · MAIN BLOCK COURTYARD</text>
+                <g id="p1SlotsContainer"></g>
+              </g>
+
+              <!-- PARKING LOT P2 (Library) -->
+              <g id="svgLotP2" transform="translate(560, 190)">
+                <rect x="0" y="0" width="400" height="110" rx="6" fill="#0a1222" stroke="rgba(99,102,241,0.3)" stroke-width="1.5" />
+                <text x="12" y="20" fill="var(--accent-indigo)" font-size="11" font-weight="800">P2 · LIBRARY DIGITAL LOT</text>
+                <g id="p2SlotsContainer"></g>
+              </g>
+
+              <!-- PARKING LOT P3 (Hostel) -->
+              <g id="svgLotP3" transform="translate(50, 380)">
+                <rect x="0" y="0" width="370" height="90" rx="6" fill="#0a1222" stroke="rgba(16,185,129,0.3)" stroke-width="1.5" />
+                <text x="12" y="20" fill="var(--accent-emerald)" font-size="11" font-weight="800">P3 · HOSTEL COMPLEX LOT</text>
+                <g id="p3SlotsContainer"></g>
+              </g>
+
+              <!-- PARKING LOT P4 (Sports Complex) -->
+              <g id="svgLotP4" transform="translate(560, 380)">
+                <rect x="0" y="0" width="400" height="90" rx="6" fill="#0a1222" stroke="rgba(245,158,11,0.3)" stroke-width="1.5" />
+                <text x="12" y="20" fill="var(--accent-amber)" font-size="11" font-weight="800">P4 · SPORTS ARENA LOT</text>
+                <g id="p4SlotsContainer"></g>
+              </g>
+
+              <!-- Animated Walking Route Path (You -> Slot) -->
+              <path id="walkingRoutePath" class="walking-route-path" d="M 470 30 L 470 240 L 220 240" />
+
+              <!-- "YOU" Navigation Marker Pin -->
+              <g id="youPinMarker" transform="translate(220, 240)" filter="url(#glowEffect)">
+                <circle cx="0" cy="0" r="14" fill="var(--accent-cyan)" />
+                <text x="0" y="4" text-anchor="middle" fill="#000" font-size="9" font-weight="900">YOU</text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Historical Replay Scrubber (Admin / Viva Demo Moment) -->
+          <div class="replay-controller">
+            <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">⏳ Replay Scrubber:</span>
+            <input type="range" id="historicalReplaySlider" class="replay-slider" min="6" max="22" step="0.5" value="10" oninput="handleReplayScrub(this.value)">
+            <span id="replayTimeDisplay" class="replay-time-badge">10:00 AM (LIVE)</span>
+            <button class="btn btn-secondary btn-sm" onclick="resetReplayToLive()">Live Now</button>
+          </div>
+        </div>
+
+        <!-- Sidebar: Lot Capacities & Selected Slot Info -->
+        <div class="twin-sidebar">
+          <div class="glass-panel" style="padding: 18px;">
+            <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 12px; color: #fff;">Campus Lots Live Status</h3>
+            <div id="lotSummariesList" style="display: flex; flex-direction: column; gap: 10px;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <div id="slotDetailPanel" class="glass-panel" style="padding: 18px;">
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 10px;">Slot Inspector</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 14px;">Click any slot on the map to inspect telemetry, vehicle type, and booking availability.</p>
+            <div id="slotInspectorDetails" style="display: none;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-weight: 800; font-size: 1.3rem; color: var(--accent-cyan);" id="inspSlotCode">P1-A-01</span>
+                <span id="inspStatusBadge" class="test-status-badge badge-pass">AVAILABLE</span>
+              </div>
+              <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 14px;">
+                Lot: <strong id="inspLotName">Main Block</strong> · Type: <strong id="inspType">4-Wheeler</strong>
+              </div>
+              <button id="inspBookBtn" class="btn btn-primary" style="width: 100%;" onclick="openDirectBookingModal()">
+                ⚡ Book This Slot
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VIEW 2: CLASSSYNC & TIME-WINDOW RESERVATIONS
+         ======================================================================== -->
+    <section id="bookingView" class="view-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>📅 Guaranteed Time-Window Reservation Engine</h2>
+          <p>Book guaranteed parking slots with database-level overlap prevention. Timetable-aware ClassSync automatically proposes the nearest lot to your class.</p>
+        </div>
+      </div>
+
+      <!-- ClassSync Allocator Standout Banner -->
+      <div class="classsync-banner glass-panel">
+        <div class="classsync-info">
+          <div class="classsync-icon">🎓</div>
+          <div class="classsync-details">
+            <h4>ClassSync: Timetable-Aware Allocator</h4>
+            <p id="classsyncRationale">Next lecture: <strong>CS401: Distributed Cloud Systems</strong> at 10:00 AM in <strong>Block C</strong>. Recommending <strong>P1 · Main Block Lot</strong> (85m, only 1.2 min walk).</p>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="applyClassSyncRecommendation()">
+          ⚡ 1-Tap ClassSync Auto-Book
+        </button>
+      </div>
+
+      <div class="booking-grid">
+        <!-- Booking Form -->
+        <div class="glass-panel" style="padding: 24px;">
+          <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 18px; color: #fff;">Custom Slot Reservation</h3>
+          
+          <div class="form-group">
+            <label for="bookLotSelect">Select Parking Lot</label>
+            <select id="bookLotSelect" class="form-control" onchange="loadSlotsForLotSelect(this.value)">
+              <option value="P1">P1 · Main Block Lot (Block C Courtyard)</option>
+              <option value="P2">P2 · Library Digital Wing (Shaded Canopy)</option>
+              <option value="P3">P3 · Hostel Complex Lot (Canteen / Hostels)</option>
+              <option value="P4">P4 · Sports Arena Lot (Gym & Stadium)</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+              <label for="bookStartTime">Reservation Start Time</label>
+              <input type="datetime-local" id="bookStartTime" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="bookEndTime">Reservation End Time (Max 4h)</label>
+              <input type="datetime-local" id="bookEndTime" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="bookSlotSelect">Select Available Slot</label>
+            <select id="bookSlotSelect" class="form-control">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+              <label for="bookVehicleNo">Vehicle Registration No.</label>
+              <input type="text" id="bookVehicleNo" class="form-control" value="DL-01-AB-1234">
+            </div>
+            <div class="form-group">
+              <label for="bookVehicleType">Vehicle Type</label>
+              <select id="bookVehicleType" class="form-control">
+                <option value="4W">4-Wheeler (Car / Sedan)</option>
+                <option value="2W">2-Wheeler (Motorbike / Scooter)</option>
+                <option value="EV">EV (Includes Charger)</option>
+                <option value="ACCESSIBLE">Accessible (Disability Permit)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="background: rgba(0, 240, 255, 0.06); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 20px; font-size: 0.82rem; color: var(--text-secondary);">
+            🛡️ <strong>Guaranteed Overlap Protection:</strong> PostgreSQL EXCLUDE constraint / SQLite transaction row lock guarantees two users can never overlap on the same slot.
+          </div>
+
+          <button class="btn btn-primary" style="width: 100%;" onclick="submitReservation()">
+            Confirm Reservation & Issue Signed QR Pass
+          </button>
+        </div>
+
+        <!-- Live Slot Grid Preview -->
+        <div class="glass-panel" style="padding: 24px;">
+          <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 12px; color: #fff;">Live Slot Picker</h3>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">Click any green slot to instantly select it for your booking.</p>
+          <div id="bookingSlotsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px; max-height: 420px; overflow-y: auto; padding-right: 6px;">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VIEW 3: MY PASSES & QR CODE PASS (Section 9 QR Deep Dive)
+         ======================================================================== -->
+    <section id="passesView" class="view-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>🎟️ My Digital Parking Passes & QR Code</h2>
+          <p>Cryptographically signed single-use JWT tokens. Displays pass for gate kiosk check-in, geofence auto check-out radar, and downloadable ticket.</p>
+        </div>
+        <div>
+          <button class="btn btn-secondary btn-sm" onclick="printPassPDF()">🖨️ Download / Print Pass</button>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 420px 1fr; gap: 24px;">
+        <!-- QR Ticket Pass Card -->
+        <div class="qr-ticket-card">
+          <div class="qr-ticket-header">
+            <div>
+              <div style="font-size: 1.1rem; font-weight: 800; color: #fff;">PARKIQ PASS</div>
+              <div style="font-size: 0.75rem; color: var(--accent-cyan); font-weight: 600;">SINGLE-USE SECURE TICKET</div>
+            </div>
+            <div style="text-align: right;">
+              <span id="qrPassStatusBadge" class="test-status-badge badge-pass">CONFIRMED</span>
+            </div>
+          </div>
+
+          <!-- Dynamic QR Canvas Render -->
+          <div class="qr-canvas-wrap">
+            <div id="qrCodeContainer"></div>
+            <div style="font-size: 0.72rem; color: #000; font-family: monospace; font-weight: 700; margin-top: 8px;">
+              HMAC-SHA256 SIGNED
+            </div>
+          </div>
+
+          <div class="qr-ticket-details">
+            <div class="qr-detail-item">
+              <div class="label">Reservation ID</div>
+              <div class="val" id="passResvId">RES-1024</div>
+            </div>
+            <div class="qr-detail-item">
+              <div class="label">Assigned Slot</div>
+              <div class="val" id="passSlotCode" style="color: var(--accent-cyan);">P1-A-07</div>
+            </div>
+            <div class="qr-detail-item">
+              <div class="label">Vehicle Plate</div>
+              <div class="val" id="passVehicleNo">DL-01-AB-1234</div>
+            </div>
+            <div class="qr-detail-item">
+              <div class="label">Valid Until</div>
+              <div class="val" id="passExpiryTime">Today 12:00 PM</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed rgba(255,255,255,0.15); display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="copyRawQrToken()">📋 Copy Token</button>
+            <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="sendTokenToKiosk()">🚀 Test at Gate Kiosk</button>
+          </div>
+        </div>
+
+        <!-- Pass History & Geofence Simulator -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Geofence Auto Check-Out Card (Blueprint Page 5 & 16) -->
+          <div class="glass-panel" style="padding: 20px;">
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 8px;">🛰️ Geofence Auto Check-Out Radar</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+              ParkIQ calculates haversine distance to the 300m campus boundary. When leaving campus, the system detects departure, grants a 5-minute grace period, auto-closes the session, and sends the receipt.
+            </p>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.3); padding: 14px; border-radius: var(--radius-sm);">
+              <div>
+                <div style="font-size: 0.85rem; font-weight: 700; color: #fff;">Campus Proximity Status: <span style="color: var(--accent-emerald);">INSIDE CAMPUS (45m)</span></div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 3px;">Haversine coordinate tracking: Lat 12.9716, Lng 77.5946</div>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="simulateLeavingCampus()">
+                🚗 Simulate Leaving Campus Boundary
+              </button>
+            </div>
+          </div>
+
+          <!-- All User Bookings List -->
+          <div class="glass-panel" style="padding: 20px; flex: 1;">
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 14px;">Recent Reservation History</h3>
+            <div id="myReservationsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 260px; overflow-y: auto;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VIEW 4: EDGEGUARD GATE KIOSK & HARDWARE SIMULATOR (Section 5 & 9)
+         ======================================================================== -->
+    <section id="kioskView" class="view-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>🛡️ EdgeGuard Gate Kiosk & Physical Servo Barrier</h2>
+          <p>Offline-capable gate kiosk with local cryptographic JWT verification. Handles QR scan, ANPR express camera, and RFID fallback.</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <!-- Offline / Online Mode Switch -->
+          <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted);">CAMPUS NETWORK:</span>
+          <button id="kioskNetToggleBtn" class="btn btn-success btn-sm" onclick="toggleKioskOfflineMode()">
+            🟢 ONLINE (Cloud Sync)
+          </button>
+        </div>
+      </div>
+
+      <div class="kiosk-grid">
+        <!-- Physical Gate Simulation Station -->
+        <div class="glass-panel kiosk-station-panel">
+          <div class="kiosk-header">
+            <div>
+              <h3 style="font-size: 1.15rem; font-weight: 800; color: #fff;">North Gate Entry Kiosk (ESP32 & Servo)</h3>
+              <p style="font-size: 0.82rem; color: var(--text-secondary);">Simulates edge hardware Raspberry Pi & SG90 Servo barrier arm</p>
+            </div>
+            <div id="barrierStateBadge" class="test-status-badge badge-fail">BARRIER CLOSED</div>
+          </div>
+
+          <!-- Animated Servo Barrier Box -->
+          <div class="gate-barrier-simulation">
+            <div class="barrier-structure">
+              <div class="barrier-post">
+                <div id="barrierLight" class="barrier-light"></div>
+              </div>
+              <div id="barrierArm" class="barrier-arm"></div>
+            </div>
+            <div id="gateStatusText" style="position: absolute; bottom: 16px; font-size: 0.85rem; font-weight: 700; color: #94a3b8; font-family: monospace;">
+              SYSTEM READY · SCAN VEHICLE PASS TO LIFT BARRIER
+            </div>
+          </div>
+
+          <!-- Multi-Method Entry Selector -->
+          <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+            <button id="kioskModeQrBtn" class="btn btn-secondary btn-sm" style="flex: 1; border-color: var(--accent-cyan);" onclick="setKioskScanMode('QR')">
+              📱 QR Code Scan
+            </button>
+            <button id="kioskModeAnprBtn" class="btn btn-secondary btn-sm" style="flex: 1;" onclick="setKioskScanMode('ANPR')">
+              📷 ANPR Camera (Plate)
+            </button>
+            <button id="kioskModeRfidBtn" class="btn btn-secondary btn-sm" style="flex: 1;" onclick="setKioskScanMode('RFID')">
+              💳 RFID Smart Card
+            </button>
+          </div>
+
+          <!-- Scanner Input Form -->
+          <div id="kioskScannerInputArea">
+            <div class="form-group">
+              <label for="kioskQrInput">Raw Signed QR Token / Barcode String</label>
+              <textarea id="kioskQrInput" class="form-control" rows="2" placeholder="Paste signed JWT QR payload or click demo attack buttons below..."></textarea>
+            </div>
+            <div style="display: flex; gap: 12px;">
+              <button class="btn btn-success" style="flex: 1;" onclick="executeKioskCheckIn()">
+                🟢 Check-In (Enter Campus)
+              </button>
+              <button class="btn btn-primary" style="flex: 1;" onclick="executeKioskCheckOut()">
+                🔴 Check-Out (Exit Campus)
+              </button>
+            </div>
+          </div>
+
+          <!-- ANPR Simulator Area (Hidden by default) -->
+          <div id="kioskAnprArea" style="display: none;">
+            <div class="form-group">
+              <label>ANPR Camera Captured Plate Number</label>
+              <div style="display: flex; gap: 10px;">
+                <input type="text" id="anprPlateInput" class="form-control" value="DL-01-AB-1234">
+                <button class="btn btn-primary" onclick="simulateAnprScan()">Capture & Verify</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evaluator Attack Demos (Page 12 & 16 of Blueprint) -->
+        <div class="glass-panel" style="padding: 24px;">
+          <h3 style="font-size: 1.1rem; font-weight: 800; color: #fff; margin-bottom: 6px;">Evaluator Attack Demos (Viva Gold)</h3>
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 16px;">
+            Demonstrate real-time cryptographic and window rejection cases cold in front of evaluators:
+          </p>
+
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <button class="btn btn-secondary btn-sm" style="justify-content: flex-start; text-align: left;" onclick="triggerAttackTest('VALID')">
+              ✅ <strong>1. Test Legitimate Pass</strong><br>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">Valid HMAC signature within time window &rarr; Barrier opens</span>
+            </button>
+
+            <button class="btn btn-secondary btn-sm" style="justify-content: flex-start; text-align: left; border-color: rgba(239, 68, 68, 0.4);" onclick="triggerAttackTest('FORGED')">
+              ❌ <strong>2. Attack: Tampered / Forged QR</strong><br>
+              <span style="font-size: 0.75rem; color: var(--accent-rose);">Fake HMAC signature &rarr; Rejected locally before touching DB</span>
+            </button>
+
+            <button class="btn btn-secondary btn-sm" style="justify-content: flex-start; text-align: left; border-color: rgba(239, 68, 68, 0.4);" onclick="triggerAttackTest('EXPIRED')">
+              ❌ <strong>3. Attack: Yesterday's Screenshot</strong><br>
+              <span style="font-size: 0.75rem; color: var(--accent-rose);">Past exp claim &rarr; Dead on arrival</span>
+            </button>
+
+            <button class="btn btn-secondary btn-sm" style="justify-content: flex-start; text-align: left; border-color: rgba(239, 68, 68, 0.4);" onclick="triggerAttackTest('REPLAY')">
+              ❌ <strong>4. Attack: Replayed QR Code</strong><br>
+              <span style="font-size: 0.75rem; color: var(--accent-rose);">Single-use state &rarr; 2nd scan refused with 409 Conflict</span>
+            </button>
+
+            <button class="btn btn-secondary btn-sm" style="justify-content: flex-start; text-align: left; border-color: rgba(239, 68, 68, 0.4);" onclick="triggerAttackTest('EARLY')">
+              ❌ <strong>5. Attack: Arrived Hours Too Early</strong><br>
+              <span style="font-size: 0.75rem; color: var(--accent-rose);">Outside reservation window (+15 min grace policy)</span>
+            </button>
+          </div>
+
+          <div id="kioskResultBox" style="margin-top: 18px; padding: 12px; border-radius: var(--radius-sm); font-size: 0.85rem; display: none;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VIEW 5: AI OCCUPANCY FORECAST & GREENMETER (Section 3, 5 & 8)
+         ======================================================================== -->
+    <section id="forecastView" class="view-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>📈 ParkIQ 48-Hour AI Forecast & GreenMeter</h2>
+          <p>Machine learning occupancy projection model trained on historical booking flow + campus sustainability metrics.</p>
+        </div>
+      </div>
+
+      <!-- Highlights / Bottleneck Warnings -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px;" id="forecastHighlightsGrid">
+        <!-- Populated via JS -->
+      </div>
+
+      <!-- 48-Hour Heatmap Table -->
+      <div class="glass-panel" style="padding: 24px; margin-bottom: 24px; overflow-x: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">48-Hour Campus Occupancy Heatmap</h3>
+          <div style="display: flex; gap: 14px; font-size: 0.8rem;">
+            <span class="heat-cell heat-green" style="padding: 2px 8px;">&lt; 60% Space</span>
+            <span class="heat-cell heat-yellow" style="padding: 2px 8px;">60%–80% Busy</span>
+            <span class="heat-cell heat-red" style="padding: 2px 8px;">&gt; 80% Peak Rush</span>
+          </div>
+        </div>
+        <table class="forecast-heatmap-table" id="forecastHeatmapTable">
+          <thead>
+            <tr>
+              <th>Time Horizon</th>
+              <th>P1 · Main Block</th>
+              <th>P2 · Library Wing</th>
+              <th>P3 · Hostel Complex</th>
+              <th>P4 · Sports Arena</th>
+              <th>Campus Peak Status</th>
+            </tr>
+          </thead>
+          <tbody id="forecastTableBody">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- GreenMeter Sustainability Details -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div class="glass-panel" style="padding: 24px;">
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 14px;">🌱 GreenMeter Campus Impact Formula</h3>
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 16px; font-family: monospace; font-size: 0.85rem; color: #34d399;">
+            Avoided Cruising Hours = Search Mins Avoided (14 min/trip) &times; Total Sessions<br>
+            CO₂ Avoided = Search Mins &times; 0.045 kg CO₂/min (Avg campus engine burn)
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div style="padding: 12px; background: rgba(0,0,0,0.25); border-radius: var(--radius-sm);">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Fuel Saved</div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: var(--accent-emerald);" id="gmFuelSaved">102.5 L</div>
+            </div>
+            <div style="padding: 12px; background: rgba(0,0,0,0.25); border-radius: var(--radius-sm);">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Seedlings Equivalent</div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: var(--accent-cyan);" id="gmSeedlings">9.9 Trees</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FairFlow Leaderboard -->
+        <div class="glass-panel" style="padding: 24px;">
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 14px;">⚡ FairFlow Off-Peak Eco Champions</h3>
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 12px;">Students & staff earning bonus tokens by shifting trips away from the 9:00 AM rush hour:</p>
+          <div id="fairflowLeaderboardList" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VIEW 6: ADMIN OPERATIONS & SECURITY CONSOLE
+         ======================================================================== -->
+    <section id="adminView" class="view-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>⚙️ Campus Security Office & Operations Console</h2>
+          <p>Realtime lot utilization gauges, currently parked roster with overstay warnings, force-end overrides, and CSV reports.</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <a href="/api/admin/analytics?format=csv" download class="btn btn-secondary btn-sm">📥 Export CSV Audit Report</a>
+          <button class="btn btn-primary btn-sm" onclick="openAddSlotModal()">+ Add New Slot</button>
+        </div>
+      </div>
+
+      <!-- Lot Utilization Progress Bars -->
+      <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+        <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 16px;">Live Lot Utilization Rates</h3>
+        <div id="adminLotUtilizationGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+          <!-- Populated via JS -->
+        </div>
+      </div>
+
+      <!-- Currently Parked Vehicles List with Overstay Flags -->
+      <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">Currently Parked Vehicles</h3>
+            <p style="font-size: 0.82rem; color: var(--text-secondary);">Realtime occupancy list monitored by campus security staff</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadAdminSessions()">🔄 Refresh Parked List</button>
+        </div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; color: var(--text-muted);">
+                <th style="padding: 10px;">Slot</th>
+                <th style="padding: 10px;">Driver</th>
+                <th style="padding: 10px;">Vehicle Plate</th>
+                <th style="padding: 10px;">Check-In Time</th>
+                <th style="padding: 10px;">Reserved Until</th>
+                <th style="padding: 10px;">Status</th>
+                <th style="padding: 10px; text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="adminSessionsTableBody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- System Audit Trail -->
+      <div class="glass-panel" style="padding: 24px;">
+        <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 14px;">Cryptographic & Security Audit Trail</h3>
+        <div id="auditLogList" style="font-family: monospace; font-size: 0.8rem; display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
+          <!-- Populated via JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VIEW 7: 10 MUST-PASS TESTING SUITE (Section 11)
+         ======================================================================== -->
+    <section id="testSuiteView" class="view-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>🧪 Section 11: 10 Must-Pass Testing Scenarios</h2>
+          <p>Live automated verification suite executing all 10 core constraints, double-booking race tests, and cryptographic attack rejections.</p>
+        </div>
+        <button id="runTestsBtn" class="btn btn-primary" onclick="runAutomatedTestSuite()">
+          🚀 Run All 10 Tests Live
+        </button>
+      </div>
+
+      <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+          <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">
+            Suite Status: <span id="testSuiteSummary" style="color: var(--accent-emerald);">All 10 Tests Passing</span>
+          </div>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Verified against backend triggers &amp; crypto routines</span>
+        </div>
+        <div id="testCardsContainer">
+          <!-- Populated dynamically with 10 interactive cards -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         VIEW 8: 2-MINUTE DEMO SCRIPT & VIVA PREPARATION (Section 12 & 13)
+         ======================================================================== -->
+    <section id="vivaView" class="view-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>🎓 2-Minute Demo Flow & Evaluator Viva Preparation</h2>
+          <p>Step-by-step rehearsed script that wins the demo + exhaustive answers to the 8 hardest questions evaluators will ask.</p>
+        </div>
+      </div>
+
+      <!-- 2-Minute Demo Script Bar -->
+      <div class="glass-panel" style="padding: 24px; margin-bottom: 28px;">
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff; margin-bottom: 6px;">The 2-Minute Demo Script (Timing is Everything)</h3>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 18px;">Click any demo step to jump directly to the relevant interactive screen:</p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+          <div style="padding: 14px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border-left: 3px solid var(--accent-cyan); cursor: pointer;" onclick="switchTab('adminView')">
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--accent-cyan);">1. Admin Setup (30s)</div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">Log in as admin, show live grid, tweak a slot, reveal analytics dashboard.</div>
+          </div>
+          <div style="padding: 14px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border-left: 3px solid var(--accent-indigo); cursor: pointer;" onclick="switchTab('forecastView')">
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--accent-indigo);">2. AI Forecast (20s)</div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">Show P1 heatmap: "P1 full by 9:40 — P3 has space till 11:15" before reaching campus.</div>
+          </div>
+          <div style="padding: 14px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border-left: 3px solid var(--accent-emerald); cursor: pointer;" onclick="switchTab('bookingView')">
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--accent-emerald);">3. ClassSync Booking (20s)</div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">Book 10:00–11:30. ClassSync picks nearest lot to 10 AM class in Block C. Confirm.</div>
+          </div>
+          <div style="padding: 14px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border-left: 3px solid var(--accent-amber); cursor: pointer;" onclick="switchTab('passesView')">
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--accent-amber);">4. QR Pass Issued (10s)</div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">Pass lands in-app instantly with HMAC signature and PDF ticket.</div>
+          </div>
+          <div style="padding: 14px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border-left: 3px solid var(--status-available); cursor: pointer;" onclick="switchTab('kioskView')">
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--status-available);">5. Gate Check-In (15s)</div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">Edge Kiosk scans QR &rarr; Barrier opens 90&deg; &rarr; Digital Twin flips red live on projector.</div>
+          </div>
+          <div style="padding: 14px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border-left: 3px solid var(--accent-rose); cursor: pointer;" onclick="switchTab('kioskView'); triggerAttackTest('FORGED');">
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--accent-rose);">6. Attack Demo (10s)</div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">Scan yesterday's screenshot &rarr; RED REJECTED ("Signature plus expiry").</div>
+          </div>
+          <div style="padding: 14px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border-left: 3px solid var(--accent-cyan); cursor: pointer;" onclick="switchTab('kioskView'); executeKioskCheckOut();">
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--accent-cyan);">7. Check-Out &amp; Close (15s)</div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">Exit scan &rarr; Slot freed to green &rarr; Receipt with duration &amp; GreenMeter CO₂ avoided.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Evaluator Viva Preparation: The 8 Questions Evaluators Will Ask -->
+      <div class="glass-panel" style="padding: 24px;">
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff; margin-bottom: 16px;">The 8 Questions Evaluators Will Actually Ask (Click to Expand Answers)</h3>
+        <div id="vivaQuestionsList">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Quick Booking Modal (From clicking a slot on the Digital Twin) -->
+  <div id="directBookingModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="flex-between mb-16">
+        <h3 style="color: #fff; font-size: 1.2rem; font-weight: 800;">Reserve Selected Slot</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeDirectBookingModal()">✕</button>
+      </div>
+      <div style="background: rgba(0, 240, 255, 0.08); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+        Slot: <strong id="modalSlotCode" style="color: var(--accent-cyan); font-size: 1.1rem;">P1-A-01</strong> · Lot: <span id="modalLotName">Main Block</span>
+      </div>
+      <div class="form-group">
+        <label>Reservation Window (Today)</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <input type="time" id="modalStartTime" class="form-control" value="10:00">
+          <input type="time" id="modalEndTime" class="form-control" value="12:00">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Driver Vehicle Number</label>
+        <input type="text" id="modalVehicleNo" class="form-control" value="DL-01-AB-1234">
+      </div>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn btn-secondary" style="flex: 1;" onclick="closeDirectBookingModal()">Cancel</button>
+        <button class="btn btn-primary" style="flex: 1;" onclick="confirmDirectModalBooking()">Confirm Booking</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Slide-over Modal -->
+  <div id="notifModal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="flex-between mb-16">
+        <h3 style="color: #fff; font-size: 1.15rem; font-weight: 700;">🔔 Notifications & Email Outbox</h3>
+        <button class="btn btn-secondary btn-sm" onclick="toggleNotifModal()">✕</button>
+      </div>
+      <div id="notificationsContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+        <!-- Populated via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
